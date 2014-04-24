@@ -121,6 +121,10 @@ class ReleasePlugin extends PluginHelper implements Plugin<Project> {
 	}
 
 	void commitTag() {
+        if (releaseConvention().skipTag) {
+            return;
+        }
+
 		def message = releaseConvention().tagCommitMessage +
 				" '${tagName()}'."
 		if (releaseConvention().preCommitText) {

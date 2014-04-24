@@ -1,6 +1,7 @@
 package release
 
 import java.util.regex.Matcher
+
 import org.gradle.api.Project
 
 /**
@@ -38,6 +39,8 @@ class ReleasePluginConvention {
     String versionPropertyFile = 'gradle.properties'
     def versionProperties = []
     String tagPrefix = null
+
+    boolean skipTag = false;
 
 	void release(Closure closure) {
 		closure.delegate = this

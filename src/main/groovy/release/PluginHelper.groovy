@@ -78,17 +78,19 @@ class PluginHelper {
 	 * @return command "stdout" output
 	 */
 	String exec(boolean failOnStderr = true, Map env = [:], File directory = null, String... commands) {
+        List<String> commandList = (commands as List) + usernameAndPassword()
+
 		def out = new StringBuffer()
 		def err = new StringBuffer()
-		def logMessage = "Running \"${commands.join(' ')}\"${ directory ? ' in [' + directory.canonicalPath + ']' : '' }"
+		def logMessage = "Running \"${commandList.join(' ')}\"${ directory ? ' in [' + directory.canonicalPath + ']' : '' }"
 
         def process = null;
 
         if (env || directory) {
             def processEnv = env << System.getenv();
-            process = (commands as List).execute(processEnv.collect { "$it.key=$it.value" } as String[], directory)
+            process = commandList.execute(processEnv.collect { "$it.key=$it.value" } as String[], directory)
         } else {
-            process = (commands as List).execute();
+            process = commandList.execute();
         }
 
 		log.info(logMessage)
@@ -110,10 +112,6 @@ class PluginHelper {
 		out.toString()
 	}
 
-	boolean useAutomaticVersion() {
-		project.hasProperty('gradle.release.useAutomaticVersion') && project.getProperty('gradle.release.useAutomaticVersion') == "true"
-	}
-
 	/**
 	 * Executes command specified and verifies neither "stdout" or "stderr" contain an error pattern specified.
 	 *
@@ -122,6 +120,8 @@ class PluginHelper {
 	 * @param errorPattern error patterns to look for, optional
 	 */
 	void exec(List<String> commands, String errorMessage, String... errorPattern) {
+        commands += usernameAndPassword()
+
 		def out = new StringBuffer()
 		def err = new StringBuffer()
 
@@ -136,6 +136,14 @@ class PluginHelper {
 			throw new GradleException("${ errorMessage ?: 'Failed to run [' + commands.join(' ') + ']' } - [$out][$err]")
 		}
 	}
+
+    List<String> usernameAndPassword() {
+        return [];
+    }
+
+    boolean useAutomaticVersion() {
+        project.hasProperty('gradle.release.useAutomaticVersion') && project.getProperty('gradle.release.useAutomaticVersion') == "true"
+    }
 
 	/**
 	 * Capitalizes first letter of the String specified.

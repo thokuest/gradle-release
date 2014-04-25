@@ -1,6 +1,7 @@
 package release
 
 import java.util.regex.Matcher
+
 import org.gradle.api.GradleException
 
 /**
@@ -107,7 +108,13 @@ class SvnReleasePlugin extends BaseScmPlugin<SvnReleasePluginConvention> {
 		exec(['svn', 'revert', findPropertiesFile().name], 'Error reverting changes made by the release plugin.', ERROR)
 	}
 
+    @Override
+    List<String> usernameAndPassword() {
+        String username = ReleaseProps.username();
+        String password = ReleaseProps.password();
 
+        return username != null ? ['--no-auth-cache', '--username', username, '--password', password] : [];
+    }
 
 	private void findSvnUrl() {
 		String out = exec(true, [LC_COLLATE: "C", LC_CTYPE: "en_US.UTF-8"], 'svn', 'info')

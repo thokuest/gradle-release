@@ -141,10 +141,6 @@ class PluginHelper {
         return [];
     }
 
-    boolean useAutomaticVersion() {
-        project.hasProperty('gradle.release.useAutomaticVersion') && project.getProperty('gradle.release.useAutomaticVersion') == "true"
-    }
-
 	/**
 	 * Capitalizes first letter of the String specified.
 	 *
@@ -211,7 +207,7 @@ class PluginHelper {
 		File propertiesFile = project.file(releaseConvention().versionPropertyFile)
 		if (!propertiesFile.file) {
 			if (!isVersionDefined()) {
-				project.version = useAutomaticVersion() ? "1.0" : readLine("Version property not set, please set it now:", "1.0")
+				project.version = ReleaseOptions.nonInteractive() ? "1.0" : readLine("Version property not set, please set it now:", "1.0")
 			}
 			boolean createIt = project.hasProperty('version') && promptYesOrNo("[$propertiesFile.canonicalPath] not found, create it with version = ${project.version}")
 			if (createIt) {

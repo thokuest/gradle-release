@@ -13,7 +13,7 @@ import org.gradle.api.tasks.TaskState
 /**
  * @author elberry
  * @author evgenyg
- * Created: Tue Aug 09 15:32:00 PDT 2011
+ * @author thokuest
  */
 class ReleasePlugin extends PluginHelper implements Plugin<Project> {
 	static final String RELEASE_GROUP = "Release"
@@ -141,7 +141,7 @@ class ReleasePlugin extends PluginHelper implements Plugin<Project> {
     String getReleaseVersion(String candidateVersion = "${project.version}") {
         String releaseVersion = project.properties['releaseVersion'];
 
-        if (useAutomaticVersion()) {
+        if (ReleaseOptions.nonInteractive()) {
             return releaseVersion ?: candidateVersion;
         }
 
@@ -204,9 +204,9 @@ class ReleasePlugin extends PluginHelper implements Plugin<Project> {
 	}
 
     String getNextVersion(String candidateVersion) {
-        String nextVersion = project.properties['newVersion'];
+        String nextVersion = ReleaseOptions.developmentVersion()
 
-        if (useAutomaticVersion()) {
+        if (ReleaseOptions.nonInteractive()) {
             return nextVersion ?: candidateVersion;
         }
 

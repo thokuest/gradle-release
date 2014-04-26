@@ -8,9 +8,8 @@ import org.gradle.api.GradleException
  * A command-line style SVN client. Requires user has SVN installed locally.
  * @author elberry
  * @author evgenyg
- * Created: Tue Aug 09 23:25:18 PDT 2011
+ * @author thokuest
  */
-// TODO: Use SVNKit or SubversionJ
 class SvnReleasePlugin extends BaseScmPlugin<SvnReleasePluginConvention> {
 
 	private static final String ERROR = 'Commit failed'
@@ -110,8 +109,8 @@ class SvnReleasePlugin extends BaseScmPlugin<SvnReleasePluginConvention> {
 
     @Override
     List<String> usernameAndPassword() {
-        String username = ReleaseProps.username();
-        String password = ReleaseProps.password();
+        String username = ReleaseOptions.username();
+        String password = ReleaseOptions.password();
 
         return username != null ? ['--no-auth-cache', '--username', username, '--password', password] : [];
     }

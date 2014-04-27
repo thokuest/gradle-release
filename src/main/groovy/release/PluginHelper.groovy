@@ -109,7 +109,7 @@ class PluginHelper {
 			}
 		}
 
-		out.toString()
+		return out.toString()
 	}
 
 	/**
@@ -119,7 +119,7 @@ class PluginHelper {
 	 * @param errorMessage error message to throw, optional
 	 * @param errorPattern error patterns to look for, optional
 	 */
-	void exec(List<String> commands, String errorMessage, String... errorPattern) {
+	String exec(List<String> commands, String errorMessage, String... errorPattern) {
         commands += usernameAndPassword()
 
 		def out = new StringBuffer()
@@ -135,6 +135,8 @@ class PluginHelper {
 		if ([out, err]*.toString().any { String s -> errorPattern.any { s.contains(it) } }) {
 			throw new GradleException("${ errorMessage ?: 'Failed to run [' + commands.join(' ') + ']' } - [$out][$err]")
 		}
+
+        return out.toString()
 	}
 
     List<String> usernameAndPassword() {
@@ -184,23 +186,32 @@ class PluginHelper {
 	 */
 	void updateVersionProperty(String newVersion) {
 		def oldVersion = "${project.version}"
+
 		if (oldVersion != newVersion) {
 			project.version = newVersion
 			project.ext.set('versionModified', true)
 			project.subprojects?.each { Project subProject ->
 				subProject.version = newVersion
 			}
-			def versionProperties = releaseConvention().versionProperties + 'version'
-			def propFile = findPropertiesFile()
-			versionProperties.each { prop ->
-				try {
-					project.ant.replace(file: propFile, token: "${prop}=${oldVersion}", value: "${prop}=${newVersion}", failOnNoReplacements: true)
-				} catch (org.apache.tools.ant.BuildException be) {
-					throw new GradleException("Unable to update version property. Please check file permissions, and ensure property is in \"${prop}=${newVersion}\" format.")
-				}
-			}
 		}
 	}
+
+    void writeVersionProperty() {
+        if (project.ext.'versionModified') {
+            def versionProperties = releaseConvention().versionProperties + 'version'
+            def propFile = findPropertiesFile()
+
+            versionProperties.each { prop ->
+                try {
+                    project.ant.propertyfile(file: propFile, comment: '') {
+                        entry(key: prop, value: project.version)
+                    }
+                } catch (org.apache.tools.ant.BuildException be) {
+                    throw new GradleException("Unable to update version property. Please check file permissions, and ensure property is in \"${prop}=${newVersion}\" format.")
+                }
+            }
+        }
+    }
 
 
 	File findPropertiesFile() {

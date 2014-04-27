@@ -15,6 +15,7 @@ class SvnReleasePlugin extends BaseScmPlugin<SvnReleasePluginConvention> {
 	private static final String ERROR = 'Commit failed'
 	private static final def urlPattern = ~/URL:\s(.*?)(\/(trunk|branches|tags).*?)$/
 	private static final def revPattern = ~/Revision:\s(.*?)$/
+    private static final def committedRevPattern = ~/Committed revision\s(.*[0-9])\.$/
 
 	void init() {
 		findSvnUrl()
@@ -22,7 +23,9 @@ class SvnReleasePlugin extends BaseScmPlugin<SvnReleasePluginConvention> {
 
 
 	@Override
-	SvnReleasePluginConvention buildConventionInstance() { new SvnReleasePluginConvention() }
+	SvnReleasePluginConvention buildConventionInstance() {
+        new SvnReleasePluginConvention()
+    }
 
 
 	@Override
@@ -93,14 +96,26 @@ class SvnReleasePlugin extends BaseScmPlugin<SvnReleasePluginConvention> {
 		String svnRoot = props.releaseSvnRoot
 		String svnTag = tagName()
 
-		exec('svn', 'cp', "${svnUrl}@${svnRev}", "${svnRoot}/tags/${svnTag}", '-m', message ?: "Created by Release Plugin: ${svnTag}")
+		String out = exec('svn', 'cp', "${svnUrl}@${svnRev}", "${svnRoot}/tags/${svnTag}", '-m', message ?: "Created by Release Plugin: ${svnTag}")
+        updateRevisionProperty(out)
 	}
 
 
 	@Override
 	void commit(String message) {
-		exec(['svn', 'ci', '-m', message], 'Error committing new version', ERROR)
+		String out = exec(['svn', 'ci', '-m', message], 'Error committing new version', ERROR)
+        updateRevisionProperty(out)
 	}
+
+    void updateRevisionProperty(String cliOut) {
+        cliOut.eachLine { line ->
+            Matcher matcher = line =~ committedRevPattern
+
+            if (matcher.matches()) {
+                project.ext.set('releaseSvnRev', matcher.group(1))
+            }
+        }
+    }
 
 	@Override
 	void revert() {

@@ -52,6 +52,8 @@ class ReleasePlugin extends PluginHelper implements Plugin<Project> {
 					'checkSnapshotDependencies',
 					//  6. (This Plugin) Build && run Unit tests
 					'build',
+                    // 6.5
+                    'writeReleaseVersion',
 					//  7. (This Plugin) Commit Snapshot update (if done)
 					'preTagCommit',
 					//  8. (SCM Plugin) Create tag of release.
@@ -71,6 +73,8 @@ class ReleasePlugin extends PluginHelper implements Plugin<Project> {
 				description: 'Removes "-SNAPSHOT" from your project\'s current version.') << this.&unSnapshotVersion
 		project.task('confirmReleaseVersion', group: RELEASE_GROUP,
 				description: 'Prompts user for this release version. Allows for alpha or pre releases.') << this.&confirmReleaseVersion
+        project.task('writeReleaseVersion', group: RELEASE_GROUP,
+                description: 'Updates property files with the release version') << this.&writeVersionProperty
 		project.task('preTagCommit', group: RELEASE_GROUP,
 				description: 'Commits any changes made by the Release plugin - eg. If the unSnapshotVersion tas was executed') << this.&preTagCommit
 		project.task('updateVersion', group: RELEASE_GROUP,
@@ -195,7 +199,9 @@ class ReleasePlugin extends PluginHelper implements Plugin<Project> {
 
 				project.ext.set("release.oldVersion", project.version)
 				project.ext.set("release.newVersion", nextVersion)
+
 				updateVersionProperty(nextVersion)
+                writeVersionProperty()
 				return
 			}
 		}

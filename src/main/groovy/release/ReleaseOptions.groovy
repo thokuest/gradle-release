@@ -19,7 +19,19 @@ class ReleaseOptions {
         return System.properties.containsKey("nonInteractive") && !"false".equalsIgnoreCase(System.properties.'nonInteractive');
     }
 
+    static String releaseVersion() {
+        return System.properties.'releaseVersion'
+    }
+
     static String developmentVersion() {
         return System.properties.'developmentVersion'
+    }
+
+    static String branchVersion() {
+        return System.properties.'branchVersion'
+    }
+
+    static String branchName() {
+        return System.properties.'branchName'
     }
 }

@@ -26,44 +26,50 @@ class ReleasePlugin extends PluginHelper implements Plugin<Project> {
 
 		setConvention('release', new ReleasePluginConvention())
 
-		def preCommitText = findProperty("release.preCommitText") ?: findProperty("preCommitText")
+		def preCommitText = findProperty("preCommitText")
+
 		if (preCommitText) {
 			releaseConvention().preCommitText = preCommitText
 		}
 		this.scmPlugin = applyScmPlugin()
 
 		project.task('release', description: 'Verify project, release, and update version to next.', group: RELEASE_GROUP, type: GradleBuild) {
-			startParameter = project.getGradle().startParameter.newInstance()
-
 			tasks = [
-					//  0. (This Plugin) Initializes the corresponding SCM plugin (Git/Bazaar/Svn/Mercurial).
-					'initScmPlugin',
-					//  1. (SCM Plugin) Check to see if source needs to be checked in.
-					'checkCommitNeeded',
-					//  2. (SCM Plugin) Check to see if source is out of date
-					'checkUpdateNeeded',
-					//  3. (This Plugin) Update Snapshot version if used
-					//     Needs to be done before checking for snapshot versions since the project might depend on other
-					//     Modules within the same project.
-					'unSnapshotVersion',
-					//  4. (This Plugin) Confirm this release version
-					'confirmReleaseVersion',
-					//  5. (This Plugin) Check for SNAPSHOT dependencies if required.
-					'checkSnapshotDependencies',
-					//  6. (This Plugin) Build && run Unit tests
-					'build',
-                    // 6.5
-                    'writeReleaseVersion',
-					//  7. (This Plugin) Commit Snapshot update (if done)
-					'preTagCommit',
-					//  8. (SCM Plugin) Create tag of release.
-					'createReleaseTag',
-					//  9. (This Plugin) Update version to next version.
-					'updateVersion',
-					// 10. (This Plugin) Commit version update.
-					'commitNewVersion'
+				 //  0. (This Plugin) Initializes the corresponding SCM plugin (Git/Bazaar/Svn/Mercurial).
+                'initScmPlugin',
+                //  1. (SCM Plugin) Check to see if source needs to be checked in.
+                'checkCommitNeeded',
+                //  2. (SCM Plugin) Check to see if source is out of date
+                'checkUpdateNeeded',
+                //  3. (This Plugin) Update Snapshot version if used
+                //     Needs to be done before checking for snapshot versions since the project might depend on other
+                //     Modules within the same project.
+                'unSnapshotVersion',
+                //  4. (This Plugin) Confirm this release version
+                'checkSnapshotDependencies',
+                //  6. (This Plugin) Build && run Unit tests
+                'confirmReleaseVersion',
+                //  5. (This Plugin) Check for SNAPSHOT dependencies if required.
+				'build',
+                // 6.5
+                'writeReleaseVersion',
+				//  7. (This Plugin) Commit Snapshot update (if done)
+				'preTagCommit',
+				//  8. (SCM Plugin) Create tag of release.
+				'createReleaseTag',
+				//  9. (This Plugin) Update version to next version.
+				'updateVersion',
+				// 10. (This Plugin) Commit version update.
+				'commitNewVersion'
 			]
 		}
+
+        project.task('branch', description: 'Creates a maintenance branch of the project', group: RELEASE_GROUP, type: GradleBuild) {
+                tasks = [
+                    'initScmPlugin',
+                    'createReleaseBranch'
+                ]
+        }
 
 		project.task('initScmPlugin', group: RELEASE_GROUP,
 				description: 'Initializes the SCM plugin (based on hidden directories in your project\'s directory)') << this.&initScmPlugin
@@ -84,9 +90,11 @@ class ReleasePlugin extends PluginHelper implements Plugin<Project> {
 		project.task('createReleaseTag', group: RELEASE_GROUP,
 				description: 'Creates a tag in SCM for the current (un-snapshotted) version.') << this.&commitTag
 
+        project.task('createReleaseBranch', group: RELEASE_GROUP,
+                description: 'Branches the project') << this.&branch;
 
 		project.gradle.taskGraph.afterTask { Task task, TaskState state ->
-			if (state.failure && task.name == "release") {
+			if (state.failure && (task.name == "release" || task.name == "branch")) {
 				if (releaseConvention().revertOnFail && project.file(releaseConvention().versionPropertyFile)?.exists()) {
 					log.error("Release process failed, reverting back any changes made by Release Plugin.")
 					this.scmPlugin.revert()
@@ -137,13 +145,38 @@ class ReleasePlugin extends PluginHelper implements Plugin<Project> {
 		scmPlugin.createReleaseTag(message)
 	}
 
+    void branch() {
+        String branchVersion = ReleaseOptions.branchVersion() ?: "${project.version}" - "-SNAPSHOT"
+        String oldVersion = "${project.version}"
+
+        if (branchVersion != oldVersion) {
+            project.version = branchVersion
+            project.ext.set('versionModified', true)
+
+            writeVersionProperty()
+            scmPlugin.commit(getCommitNewVersionMessage())
+        }
+
+        String message = releaseConvention().branchCommitMessage +
+               " '${branchName()}'."
+
+        scmPlugin.createReleaseBranch(message)
+
+        if (branchVersion != oldVersion) {
+            project.version = oldVersion
+
+            writeVersionProperty()
+            scmPlugin.commit(getCommitNewVersionMessage())
+        }
+    }
+
 	void confirmReleaseVersion() {
 		def version = getReleaseVersion();
 		updateVersionProperty(version)
 	}
 
     String getReleaseVersion(String candidateVersion = "${project.version}") {
-        String releaseVersion = project.properties['releaseVersion'];
+        String releaseVersion = ReleaseOptions.releaseVersion()
 
         if (ReleaseOptions.nonInteractive()) {
             return releaseVersion ?: candidateVersion;
@@ -220,13 +253,21 @@ class ReleasePlugin extends PluginHelper implements Plugin<Project> {
     }
 
 	def commitNewVersion() {
-		def message = releaseConvention().newVersionCommitMessage +
-				" '${tagName()}'."
-		if (releaseConvention().preCommitText) {
-			message = "${releaseConvention().preCommitText} ${message}"
-		}
+		def message = getCommitNewVersionMessage();
+
 		scmPlugin.commit(message)
 	}
+
+    String getCommitNewVersionMessage() {
+        def message = releaseConvention().newVersionCommitMessage +
+                " '${tagName()}'."
+
+        if (releaseConvention().preCommitText) {
+            message = "${releaseConvention().preCommitText} ${message}"
+        }
+
+        return message;
+    }
 
 
 	def checkPropertiesFile() {

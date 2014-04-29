@@ -1,5 +1,6 @@
 package release
 
+import org.gradle.api.GradleException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 
@@ -50,6 +51,10 @@ abstract class BaseScmPlugin<T> extends PluginHelper implements Plugin<Project> 
 	abstract void checkUpdateNeeded()
 
 	abstract void createReleaseTag(String message)
+
+    void createReleaseBranch(String message) {
+        throw new GradleException("branching is currently not supported by this SCM plugin");
+    }
 
 	abstract void commit(String message)
 

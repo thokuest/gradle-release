@@ -248,6 +248,17 @@ class PluginHelper {
 		return "${prefix}${project.version}"
 	}
 
+    String branchName() {
+        String branchName = ReleaseOptions.branchName();
+
+        if (branchName != null) {
+            return branchName;
+        }
+
+        String branchVersion = "${project.version}" - "-SNAPSHOT"
+        return "${project.rootProject.name}-${branchVersion}-release";
+    }
+
 	String findProperty(String key, String defaultVal = "") {
 		System.properties[key] ?: project.properties[key] ?: defaultVal
 	}

@@ -17,10 +17,16 @@ class ReleasePluginConvention {
 	boolean failOnUnversionedFiles = true
 	boolean failOnUpdateNeeded = true
 	boolean revertOnFail = true // will use the SCM plugin to revert any uncommitted changes in the project.
+
 	String preCommitText = "" // good place for code review overrides and ticket numbers
 	String preTagCommitMessage = "[Gradle Release Plugin] - pre tag commit: "
 	String tagCommitMessage = "[Gradle Release Plugin] - creating tag: "
-	String newVersionCommitMessage = "[Gradle Release Plugin] - new version commit: "
+
+    String preBranchText = ""
+    String preBranchCommitMessage = "[Gradle Release Plugin] - pre branch commit: "
+    String branchCommitMessage = "[Gradle Release Plugin] - creating branch: "
+
+    String newVersionCommitMessage = "[Gradle Release Plugin] - new version commit: "
 
 	/**
 	 * If true, tag names and messages will include the project name (e.g. project-name-version)

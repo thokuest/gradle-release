@@ -160,6 +160,10 @@ class ReleasePlugin extends PluginHelper implements Plugin<Project> {
         String message = releaseConvention().branchCommitMessage +
                " '${branchName()}'."
 
+        if (releaseConvention().preCommitText) {
+            message = "${releaseConvention().preCommitText} ${message}"
+        }
+
         scmPlugin.createReleaseBranch(message)
 
         if (branchVersion != oldVersion) {

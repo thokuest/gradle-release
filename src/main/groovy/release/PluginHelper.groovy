@@ -80,8 +80,8 @@ class PluginHelper {
 	String exec(boolean failOnStderr = true, Map env = [:], File directory = null, String... commands) {
         List<String> commandList = (commands as List) + usernameAndPassword()
 
-		def out = new StringBuffer()
-		def err = new StringBuffer()
+		def out = new StringBuilder()
+		def err = new StringBuilder()
 		def logMessage = "Running \"${commandList.join(' ')}\"${ directory ? ' in [' + directory.canonicalPath + ']' : '' }"
 
         def process = null;
@@ -122,8 +122,8 @@ class PluginHelper {
 	String exec(List<String> commands, String errorMessage, String... errorPattern) {
         commands += usernameAndPassword()
 
-		def out = new StringBuffer()
-		def err = new StringBuffer()
+		def out = new StringBuilder()
+		def err = new StringBuilder()
 
 		log.info(" >>> Running $commands")
 		def process = commands.execute()

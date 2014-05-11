@@ -1,50 +1,24 @@
 package release
 
 import org.gradle.api.GradleException
-import org.gradle.api.Plugin
 import org.gradle.api.Project
+
+import release.helper.Validate
 
 /**
  * Base class for all SCM-specific plugins
  * @author evgenyg
  */
-abstract class BaseScmPlugin<T> extends PluginHelper implements Plugin<Project> {
+abstract class BaseScmPlugin extends PluginHelper {
 
 	private final String pluginName = this.class.simpleName
-	private T convention
 
-	void apply(Project project) {
-
-		this.project = project
-
-		project.task('checkCommitNeeded', group: ReleasePlugin.RELEASE_GROUP,
-				description: 'Checks to see if there are any added, modified, removed, or un-versioned files.') << this.&checkCommitNeeded
-		project.task('checkUpdateNeeded', group: ReleasePlugin.RELEASE_GROUP,
-				description: 'Checks to see if there are any incoming or outgoing changes that haven\'t been applied locally.') << this.&checkUpdateNeeded
-
-        setConvention()
-
+    public BaseScmPlugin(Project project) {
+        this.project = project;
     }
 
-	/**
-	 * Called by {@link ReleasePlugin} when plugin's convention needs to be set.
-	 */
-	final void setConvention() { convention = (T) setConvention(pluginName, buildConventionInstance()) }
-
-	/**
-	 * Convenience method for sub-classes to access their own convention instance.
-	 * @return this plugin convention instance.
-	 */
-	@SuppressWarnings('ConfusingMethodName')
-	final T convention() { convention(pluginName, convention.class)}
-
-	/**
-	 * Retrieves convention instance to be set for this plugin.
-	 * @return convention instance to be set for this plugin.
-	 */
-	abstract T buildConventionInstance()
-
-	abstract void init()
+	void initialize() {
+    }
 
 	abstract void checkCommitNeeded()
 
@@ -59,4 +33,28 @@ abstract class BaseScmPlugin<T> extends PluginHelper implements Plugin<Project> 
 	abstract void commit(String message)
 
 	abstract void revert()
+
+    void assertNoModifications(def condition, def message) {
+        if (condition) {
+            Validate.warnOrFail(project.release.failOnCommitNeeded, message)
+        }
+    }
+
+    void assertNoUnversionedFiles(def condition, def message) {
+        if (condition) {
+            Validate.warnOrFail(project.release.failOnUnversionedFiles, message)
+        }
+    }
+
+    void assertNoPendingCommits(def condition, def message) {
+        if (condition) {
+            Validate.warnOrFail(project.release.failOnPublishNeeded, message);
+        }
+    }
+
+    void assertUpToDate(def condition, def message) {
+        if (condition) {
+            Validate.warnOrFail(project.release.failOnUpdateNeeded, message);
+        }
+    }
 }

@@ -1,70 +1,74 @@
 package release
 
-import org.gradle.api.GradleException
+import org.gradle.api.Project
+
+import release.helper.Validate
 
 /**
  * @author elberry
  * @author evgenyg
  * Created: Tue Aug 09 23:26:04 PDT 2011
  */
-class BzrReleasePlugin extends BaseScmPlugin<BzrReleasePluginConvention> {
-
+class BzrReleasePlugin extends BaseScmPlugin {
 	private static final String ERROR = 'ERROR'
 	private static final String DELIM = '\n  * '
 
+    BzrReleasePlugin(Project project) {
+        super(project)
+    }
+
 	@Override
-	void init() {
+	void initialize() {
+		boolean hasXmlPlugin = cli.launcher {
+            commands = ['bzr', 'plugins']
+		}.out().readLines().any { it.startsWith('xmloutput') }
 
-		boolean hasXmlPlugin = exec('bzr', 'plugins').readLines().any { it.startsWith('xmloutput') }
-
-		if (!hasXmlPlugin) {
-			throw new GradleException('The required xmloutput plugin is not installed in Bazaar, please install it.')
-		}
+        Validate.assertTrue(hasXmlPlugin,
+            'The required xmloutput plugin is not installed in Bazaar, please install it.')
 	}
-
-
-	@Override
-	BzrReleasePluginConvention buildConventionInstance() { new BzrReleasePluginConvention() }
-
 
 	@Override
 	void checkCommitNeeded() {
-		String out = exec('bzr', 'xmlstatus')
+		String out = cli.launcher {
+            commands = ['bzr', 'xmlstatus']
+		}.out()
+
 		def xml = new XmlSlurper().parseText(out)
 		def added = xml.added?.size() ?: 0
 		def modified = xml.modified?.size() ?: 0
 		def removed = xml.removed?.size() ?: 0
 		def unknown = xml.unknown?.size() ?: 0
 
-		def c = { String name ->
-			["${ capitalize(name)}:",
+		def format = { String name ->
+			["${name.capitalize()}:",
 					xml."$name".file.collect { it.text().trim() },
 					xml."$name".directory.collect { it.text().trim() }].
 					flatten().
 					join(DELIM) + '\n'
 		}
 
-		if (unknown) {
-			warnOrThrow(releaseConvention().failOnUnversionedFiles, "You have un-versioned files:\n${c('unknown')}")
-		} else if (added || modified || removed) {
-			def message = 'You have un-committed files:\n' +
-					(added ? c('added') : '') +
-					(modified ? c('modified') : '') +
-					(removed ? c('removed') : '')
-			warnOrThrow(releaseConvention().failOnCommitNeeded, message)
-		}
+        assertNoUnversionedFiles(unknown, "You have un-versioned files:\n${format('unknown')}")
+
+        assertNoModifications(added || modified || removed,
+            'You have un-committed files:\n' +
+                (added ? format('added') : '') +
+                (modified ? format('modified') : '') +
+                (removed ? format('removed') : ''))
 	}
 
 
 	@Override
 	void checkUpdateNeeded() {
-		String out = exec('bzr', 'xmlmissing')
+		String out = cli.launcher {
+            commands = ['bzr', 'xmlmissing']
+		}.out()
+
 		def xml = new XmlSlurper().parseText(out)
 		int extra = ("${xml.extra_revisions?.@size}" ?: 0) as int
 		int missing = ("${xml.missing_revisions?.@size}" ?: 0) as int
 
 		//noinspection GroovyUnusedAssignment
-		Closure c = {
+		def format = {
 			int number, String name, String path ->
 
 			["You have $number $name changes${ number == 1 ? '' : 's' }:",
@@ -79,13 +83,11 @@ class BzrReleasePlugin extends BaseScmPlugin<BzrReleasePluginConvention> {
 					join(DELIM)
 		}
 
-		if (extra > 0) {
-			warnOrThrow(releaseConvention().failOnPublishNeeded, c(extra, 'unpublished', 'extra_revisions'))
-		}
+        assertNoPendingCommits(extra > 0,
+            format(extra, 'unpublished', 'extra_revisions'))
 
-		if (missing > 0) {
-			warnOrThrow(releaseConvention().failOnUpdateNeeded, c(missing, 'missing', 'missing_revisions'))
-		}
+        assertUpToDate(missing > 0,
+            format(missing, 'missing', 'missing_revisions'))
 	}
 
 	/**
@@ -94,19 +96,35 @@ class BzrReleasePlugin extends BaseScmPlugin<BzrReleasePluginConvention> {
 	 */
 	@Override
 	void createReleaseTag(String message = "") {
-		// message is ignored
-		exec(['bzr', 'tag', tagName()], 'Error creating tag', ERROR)
+		cli.launcher {
+            commands = ['bzr', 'tag', tagName()]
+            errorMessage = 'Error creating tag'
+            errorPattern = ERROR
+		}.execute()
 	}
 
 
 	@Override
 	void commit(String message) {
-		exec(['bzr', 'ci', '-m', message], 'Error committing new version', ERROR)
-		exec(['bzr', 'push', ':parent'], 'Error committing new version', ERROR)
+		cli.launcher {
+            commands = ['bzr', 'ci', '-m', message]
+            errorMessage = 'Error committing new version'
+            errorPattern = ERROR
+		}.execute()
+
+		cli.launcher {
+            commands = ['bzr', 'push', ':parent']
+            errorMessage = 'Error committing new version'
+            errorPattern = ERROR
+		}.execute()
 	}
 
 	@Override
 	void revert() {
-		exec(['bzr', 'revert', findPropertiesFile().name], 'Error reverting changes made by the release plugin.', ERROR)
+		cli.launcher {
+            commands = ['bzr', 'revert', findPropertiesFile().name]
+            errorMessage = 'Error reverting changes made by the release plugin.'
+            errorPattern = ERROR
+		}.execute()
 	}
 }

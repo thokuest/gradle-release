@@ -1,6 +1,8 @@
 package release
 
-import org.gradle.api.GradleException
+import org.gradle.api.Project
+
+import release.helper.Validate
 
 /**
  * @author elberry
@@ -8,7 +10,7 @@ import org.gradle.api.GradleException
  * @author szpak
  * Created: Tue Aug 09 23:24:40 PDT 2011
  */
-class GitReleasePlugin extends BaseScmPlugin<GitReleasePluginConvention> {
+class GitReleasePlugin extends BaseScmPlugin {
 
 	private static final String LINE = '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
 
@@ -17,55 +19,51 @@ class GitReleasePlugin extends BaseScmPlugin<GitReleasePluginConvention> {
 	private static final String AHEAD = 'ahead'
 	private static final String BEHIND = 'behind'
 
+    GitReleasePlugin(Project project) {
+        super(project)
+    }
+
 	@Override
-	void init() {
-		if (convention().requireBranch) {
+	void initialize() {
+        def requireBranch = project.release.git.requireBranch
 
-			def branch = gitCurrentBranch()
+        if (!requireBranch) {
+            return;
+        }
 
-			if (!(branch == convention().requireBranch)) {
-				throw new GradleException("Current Git branch is \"$branch\" and not \"${ convention().requireBranch }\".")
-			}
-		}
+		def branch = gitCurrentBranch()
+
+        Validate.assertTrue(branch == requireBranch,
+            "Current Git branch is \"$branch\" and not \"${requireBranch}\".")
 	}
-
-
-	@Override
-	GitReleasePluginConvention buildConventionInstance() { releaseConvention().git }
-
 
 	@Override
 	void checkCommitNeeded() {
-
 		def status = gitStatus()
 
-		if (status[UNVERSIONED]) {
-			warnOrThrow(releaseConvention().failOnUnversionedFiles,
-					(['You have unversioned files:', LINE, * status[UNVERSIONED], LINE] as String[]).join('\n'))
-		}
+        def format = { message, files ->
+            ([message, LINE, * files, LINE] as String[]).join('\n')
+        }
 
-		if (status[UNCOMMITTED]) {
-			warnOrThrow(releaseConvention().failOnCommitNeeded,
-					(['You have uncommitted files:', LINE, * status[UNCOMMITTED], LINE] as String[]).join('\n'))
-		}
+        assertNoUnversionedFiles(status[UNVERSIONED],
+            format('You have unversioned files:', status[UNVERSIONED]))
 
+        assertNoModifications(status[UNCOMMITTED],
+            format('You have uncommitted files:', status[UNCOMMITTED]))
 	}
 
 
 	@Override
 	void checkUpdateNeeded() {
-
 		gitExec(['remote', 'update'], '')
 
 		def status = gitRemoteStatus()
 
-		if (status[AHEAD]) {
-			warnOrThrow(releaseConvention().failOnPublishNeeded, "You have ${status[AHEAD]} local change(s) to push.")
-		}
+        assertNoPendingCommits(status[AHEAD],
+            "You have ${status[AHEAD]} local change(s) to push.")
 
-		if (status[BEHIND]) {
-			warnOrThrow(releaseConvention().failOnUpdateNeeded, "You have ${status[BEHIND]} remote change(s) to pull.")
-		}
+        assertUpToDate(status[BEHIND],
+            "You have ${status[BEHIND]} remote change(s) to pull.")
 	}
 
 
@@ -81,10 +79,11 @@ class GitReleasePlugin extends BaseScmPlugin<GitReleasePluginConvention> {
 	void commit(String message) {
 		gitExec(['commit', '-a', '-m', message], '')
 		def pushCmd = ['push', 'origin']
-		if (convention().pushToCurrentBranch) {
+
+		if (plugin.release.git.pushToCurrentBranch) {
 			pushCmd << gitCurrentBranch()
 		} else {
-			def requireBranch = convention().requireBranch
+			def requireBranch = plugin.release.git.requireBranch
 			log.debug("commit - {requireBranch: ${requireBranch}}")
 			if(requireBranch) {
 				pushCmd << requireBranch
@@ -99,8 +98,6 @@ class GitReleasePlugin extends BaseScmPlugin<GitReleasePluginConvention> {
 	void revert() {
 		gitExec(['checkout', findPropertiesFile().name], "Error reverting changes made by the release plugin.")
 	}
-
-
 
 	private String gitCurrentBranch() {
 		def matches = gitExec('branch').readLines().grep(~/\s*\*.*/)
@@ -133,36 +130,43 @@ class GitReleasePlugin extends BaseScmPlugin<GitReleasePluginConvention> {
 		remoteStatus
 	}
 
-	String gitExec(Collection<String> params, String errorMessage, String... errorPattern) {
+	String gitExec(Collection<String> params, String message, String... pattern) {
 		def gitDir = resolveGitDir()
 		def workTree = resolveWorkTree()
 		def cmdLine = ['git', "--git-dir=${gitDir}", "--work-tree=${workTree}"].plus(params)
-		log.debug("gitExec - 1 - {cmdLine: ${cmdLine}, errorMessage: ${errorMessage}, errorPattern: ${errorPattern}}")
-		return exec(cmdLine, errorMessage, errorPattern)
+
+        return cli.launcher {
+            commands = cmdLine
+            errorMessage = message
+            errorPattern = pattern
+		}.out()
 	}
 
 	private String resolveGitDir() {
-		if (convention().scmRootDir) {
-			project.rootProject.file(convention().scmRootDir + "/.git").canonicalPath.replaceAll("\\\\", "/")
+		if (plugin.release.git.scmRootDir) {
+			project.rootProject.file(plugin.release.git.scmRootDir + "/.git").canonicalPath.replaceAll("\\\\", "/")
 		} else {
 			project.rootProject.file(".git").canonicalPath.replaceAll("\\\\", "/")
 		}
 	}
 
 	private String resolveWorkTree() {
-		if (convention().scmRootDir) {
-			project.rootProject.file(convention().scmRootDir).canonicalPath.replaceAll("\\\\", "/")
+		if (plugin.release.git.scmRootDir) {
+			project.rootProject.file(plugin.release.git.scmRootDir).canonicalPath.replaceAll("\\\\", "/")
 		} else {
 			project.rootProject.projectDir.canonicalPath.replaceAll("\\\\", "/")
 		}
 	}
 
-	String gitExec(String... commands) {
+	String gitExec(String... params) {
 		def gitDir = resolveGitDir()
 		def workTree = resolveWorkTree()
 		def cmdLine = ['git', "--git-dir=${gitDir}", "--work-tree=${workTree}"]
-		cmdLine.addAll commands
-		log.debug("gitExec - 2 - {cmdLine: ${cmdLine}}")
-		return exec(cmdLine as String[])
+
+		cmdLine.addAll params
+
+		return cli.launcher {
+            commands = cmdLine
+		}.out()
 	}
 }

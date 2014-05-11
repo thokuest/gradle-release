@@ -42,7 +42,6 @@ class ReleasePluginConvention {
 	def git = new GitReleasePluginConvention()
 
     String versionPropertyFile = 'gradle.properties'
-    def versionProperties = []
     String tagPrefix = null
 
     boolean skipTag = false;
